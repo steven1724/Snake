@@ -1,0 +1,94 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: #1a1a2e;
+  color: #eee;
+  font-family: 'Segoe UI', sans-serif;
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px;
+  gap: 16px;
+}
+
+h1 {
+  font-size: 2rem;
+  color: #4ecca3;
+  letter-spacing: 4px;
+}
+
+.scoreboard {
+  font-size: 1.2rem;
+  color: #ccc;
+}
+
+.board {
+  position: relative;
+  background: #16213e;
+  border: 2px solid #4ecca3;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.cell {
+  position: absolute;
+  border-radius: 3px;
+}
+
+.snake {
+  background: #4ecca3;
+}
+
+.head {
+  background: #80ffdb;
+  border-radius: 5px;
+}
+
+.food {
+  background: #ff6b6b;
+  border-radius: 50%;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.overlay-box {
+  text-align: center;
+  font-size: 1.4rem;
+  color: #4ecca3;
+  line-height: 2;
+}
+
+.controls button {
+  padding: 10px 32px;
+  font-size: 1rem;
+  background: #4ecca3;
+  color: #1a1a2e;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background 0.2s;
+}
+
+.controls button:hover {
+  background: #80ffdb;
+}
+
+.hint {
+  color: #888;
+  font-size: 0.85rem;
+}
