@@ -1,10 +1,18 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './App.css';
 
-const ROWS = 20;
-const COLS = 20;
-const CELL_SIZE = 24;
+const ROWS = 30;
+const COLS = 30;
 const INITIAL_SPEED = 150;
+const CHROME_HEIGHT = 220; // space reserved for header, scoreboard, controls, hint
+const BOARD_MARGIN = 32;
+
+function computeCellSize() {
+  const availWidth = window.innerWidth - BOARD_MARGIN;
+  const availHeight = window.innerHeight - CHROME_HEIGHT;
+  const size = Math.floor(Math.min(availWidth, availHeight) / COLS);
+  return Math.max(8, size);
+}
 
 const Direction = { UP: 'UP', DOWN: 'DOWN', LEFT: 'LEFT', RIGHT: 'RIGHT' };
 
@@ -28,6 +36,13 @@ function randomFood(snake) {
 
 export default function App() {
   const [state, setState] = useState(getInitialState());
+  const [cellSize, setCellSize] = useState(computeCellSize);
+
+  useEffect(() => {
+    const onResize = () => setCellSize(computeCellSize());
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   const tick = useCallback(() => {
     setState(prev => {
@@ -154,17 +169,17 @@ export default function App() {
       <h1>贪吃蛇</h1>
       <div className="scoreboard">分数: {state.score}</div>
 
-      <div className="board" style={{ width: COLS * CELL_SIZE, height: ROWS * CELL_SIZE }}>
+      <div className="board" style={{ width: COLS * cellSize, height: ROWS * cellSize }}>
         {state.snake.map((seg, i) => (
           <div
             key={i}
             className={`cell snake${i === 0 ? ' head' : ''}`}
-            style={{ left: seg.x * CELL_SIZE, top: seg.y * CELL_SIZE, width: CELL_SIZE, height: CELL_SIZE }}
+            style={{ left: seg.x * cellSize, top: seg.y * cellSize, width: cellSize, height: cellSize }}
           />
         ))}
         <div
           className="cell food"
-          style={{ left: state.food.x * CELL_SIZE, top: state.food.y * CELL_SIZE, width: CELL_SIZE, height: CELL_SIZE }}
+          style={{ left: state.food.x * cellSize, top: state.food.y * cellSize, width: cellSize, height: cellSize }}
         />
         {(state.dead || (!state.running && !state.dead)) && (
           <div className="overlay">
