@@ -35,10 +35,67 @@ function randomFood(snake) {
   return pos;
 }
 
+const NOTE_FREQ = {
+  C4: 261.63, D4: 293.66, E4: 329.63, F4: 349.23, G4: 392.0,
+  A4: 440.0, B4: 493.88, C5: 523.25, D5: 587.33, E5: 659.25,
+  G3: 196.0, A3: 220.0,
+};
+
+// 8-bit 风格的循环旋律，[音符, 时长(秒)]
+const MELODY = [
+  ['E4', 0.2], ['G4', 0.2], ['A4', 0.2], ['G4', 0.2],
+  ['E4', 0.2], ['D4', 0.2], ['E4', 0.4],
+  ['D4', 0.2], ['C4', 0.2], ['D4', 0.2], ['E4', 0.2],
+  ['C4', 0.4], ['G3', 0.4],
+];
+
+// 用 Web Audio API 的振荡器循环播放旋律，无需任何音频文件
+function useBackgroundMusic(playing) {
+  const ctxRef = useRef(null);
+  const timeoutRef = useRef(null);
+
+  useEffect(() => {
+    if (!playing) return;
+
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    ctxRef.current = ctx;
+
+    const playLoop = () => {
+      let t = ctx.currentTime;
+      MELODY.forEach(([note, dur]) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'square';
+        osc.frequency.value = NOTE_FREQ[note];
+        gain.gain.setValueAtTime(0.06, t);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + dur * 0.9);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(t);
+        osc.stop(t + dur);
+        t += dur;
+      });
+      const totalDuration = MELODY.reduce((sum, [, dur]) => sum + dur, 0);
+      timeoutRef.current = setTimeout(playLoop, totalDuration * 1000);
+    };
+
+    playLoop();
+
+    return () => {
+      clearTimeout(timeoutRef.current);
+      ctx.close();
+      ctxRef.current = null;
+    };
+  }, [playing]);
+}
+
 export default function App() {
   const [state, setState] = useState(getInitialState());
   const [cellSize, setCellSize] = useState(computeCellSize);
   const boardRef = useRef(null);
+
+  // 游戏进行中（running）才播放背景音乐，暂停/结束自动停止
+  useBackgroundMusic(state.running);
 
   // 窗口尺寸变化时（比如旋转屏幕）重新计算单元格大小
   useEffect(() => {
