@@ -1,10 +1,19 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './App.css';
 
-const ROWS = 20;
-const COLS = 20;
-const CELL_SIZE = 24;
+const ROWS = 30;
+const COLS = 30;
 const INITIAL_SPEED = 150;
+const CHROME_HEIGHT = 220; // 给标题/分数/按钮/提示预留的高度
+const BOARD_MARGIN = 32;
+
+// 根据当前窗口大小反算单元格边长，保证 30x30 的地图整屏可见、无需滚动
+function computeCellSize() {
+  const availWidth = window.innerWidth - BOARD_MARGIN;
+  const availHeight = window.innerHeight - CHROME_HEIGHT;
+  const size = Math.floor(Math.min(availWidth, availHeight) / COLS);
+  return Math.max(8, size);
+}
 
 const Direction = { UP: 'UP', DOWN: 'DOWN', LEFT: 'LEFT', RIGHT: 'RIGHT' };
 
@@ -28,7 +37,17 @@ function randomFood(snake) {
 
 export default function App() {
   const [state, setState] = useState(getInitialState());
+  const [cellSize, setCellSize] = useState(computeCellSize);
+  const boardRef = useRef(null);
 
+  // 窗口尺寸变化时（比如旋转屏幕）重新计算单元格大小
+  useEffect(() => {
+    const onResize = () => setCellSize(computeCellSize());
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  // 游戏主循环：每个 tick 让蛇朝当前方向前进一格
   const tick = useCallback(() => {
     setState(prev => {
       if (!prev.running || prev.dead) return prev;
@@ -44,14 +63,17 @@ export default function App() {
 
       const newHead = { x: head.x + delta.x, y: head.y + delta.y };
 
+      // 撞墙判定
       if (newHead.x < 0 || newHead.x >= COLS || newHead.y < 0 || newHead.y >= ROWS) {
         return { ...prev, dead: true, running: false };
       }
 
+      // 撞到自己身体判定
       if (prev.snake.some(s => s.x === newHead.x && s.y === newHead.y)) {
         return { ...prev, dead: true, running: false };
       }
 
+      // 吃到食物则蛇身变长（不删尾巴），否则正常前进
       const ateFood = newHead.x === prev.food.x && newHead.y === prev.food.y;
       const newSnake = [newHead, ...prev.snake];
       if (!ateFood) newSnake.pop();
@@ -66,6 +88,7 @@ export default function App() {
     });
   }, []);
 
+  // 分数越高蛇移动越快（每 50 分提速 10ms，下限 60ms）
   useEffect(() => {
     if (!state.running) return;
     const speed = Math.max(60, INITIAL_SPEED - Math.floor(state.score / 50) * 10);
@@ -73,6 +96,7 @@ export default function App() {
     return () => clearInterval(id);
   }, [state.running, state.score, tick]);
 
+  // 手机端滑动控制：记录触摸起点，抬手时按位移较大的轴判断滑动方向
   useEffect(() => {
     let touchStart = null;
 
@@ -116,6 +140,7 @@ export default function App() {
     };
   }, []);
 
+  // 键盘控制：方向键 / WASD
   useEffect(() => {
     const onKey = (e) => {
       const map = {
@@ -141,6 +166,37 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  // 鼠标控制：点击地图上蛇头的某一侧，蛇转向该方向（按偏移量较大的轴判断）
+  const onBoardMouseDown = useCallback((e) => {
+    const board = boardRef.current;
+    if (!board) return;
+    const rect = board.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const clickY = e.clientY - rect.top;
+
+    setState(prev => {
+      const head = prev.snake[0];
+      const headX = head.x * cellSize + cellSize / 2;
+      const headY = head.y * cellSize + cellSize / 2;
+      const dx = clickX - headX;
+      const dy = clickY - headY;
+
+      if (Math.abs(dx) < 4 && Math.abs(dy) < 4) return prev;
+
+      const opposite = {
+        UP: Direction.DOWN, DOWN: Direction.UP,
+        LEFT: Direction.RIGHT, RIGHT: Direction.LEFT,
+      };
+
+      const newDir = Math.abs(dx) > Math.abs(dy)
+        ? (dx > 0 ? Direction.RIGHT : Direction.LEFT)
+        : (dy > 0 ? Direction.DOWN : Direction.UP);
+
+      if (opposite[newDir] === prev.dir) return prev;
+      return { ...prev, nextDir: newDir };
+    });
+  }, [cellSize]);
+
   const start = () => {
     if (state.dead) {
       setState({ ...getInitialState(), running: true });
@@ -154,17 +210,22 @@ export default function App() {
       <h1>贪吃蛇</h1>
       <div className="scoreboard">分数: {state.score}</div>
 
-      <div className="board" style={{ width: COLS * CELL_SIZE, height: ROWS * CELL_SIZE }}>
+      <div
+        className="board"
+        ref={boardRef}
+        onMouseDown={onBoardMouseDown}
+        style={{ width: COLS * cellSize, height: ROWS * cellSize }}
+      >
         {state.snake.map((seg, i) => (
           <div
             key={i}
             className={`cell snake${i === 0 ? ' head' : ''}`}
-            style={{ left: seg.x * CELL_SIZE, top: seg.y * CELL_SIZE, width: CELL_SIZE, height: CELL_SIZE }}
+            style={{ left: seg.x * cellSize, top: seg.y * cellSize, width: cellSize, height: cellSize }}
           />
         ))}
         <div
           className="cell food"
-          style={{ left: state.food.x * CELL_SIZE, top: state.food.y * CELL_SIZE, width: CELL_SIZE, height: CELL_SIZE }}
+          style={{ left: state.food.x * cellSize, top: state.food.y * cellSize, width: cellSize, height: cellSize }}
         />
         {(state.dead || (!state.running && !state.dead)) && (
           <div className="overlay">
@@ -187,7 +248,7 @@ export default function App() {
           {state.dead ? '重新开始' : state.running ? '暂停' : '开始'}
         </button>
       </div>
-      <p className="hint">方向键 / WASD 控制 · 手机滑动屏幕控制</p>
+      <p className="hint">方向键 / WASD 控制 · 手机滑动屏幕控制 · 鼠标点击地图控制方向</p>
     </div>
   );
 }
