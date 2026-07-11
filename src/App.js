@@ -27,10 +27,17 @@ const getInitialState = () => ({
   score: 0,
 });
 
+const FOOD_MARGIN_RATIO = 0.2; // 食物只在地图中间约 60% 的区域内生成，避免贴边
+
 function randomFood(snake) {
+  const marginX = Math.floor(COLS * FOOD_MARGIN_RATIO);
+  const marginY = Math.floor(ROWS * FOOD_MARGIN_RATIO);
   let pos;
   do {
-    pos = { x: Math.floor(Math.random() * COLS), y: Math.floor(Math.random() * ROWS) };
+    pos = {
+      x: marginX + Math.floor(Math.random() * (COLS - marginX * 2)),
+      y: marginY + Math.floor(Math.random() * (ROWS - marginY * 2)),
+    };
   } while (snake.some(s => s.x === pos.x && s.y === pos.y));
   return pos;
 }
