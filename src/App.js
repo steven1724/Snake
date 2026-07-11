@@ -49,18 +49,26 @@ const MELODY = [
   ['C4', 0.4], ['G3', 0.4],
 ];
 
+// 所有音效/音乐共用同一个 AudioContext，避免反复创建
+let sharedAudioCtx = null;
+function getAudioContext() {
+  if (!sharedAudioCtx) {
+    sharedAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  return sharedAudioCtx;
+}
+
 // 用 Web Audio API 的振荡器循环播放旋律，无需任何音频文件
 function useBackgroundMusic(playing) {
-  const ctxRef = useRef(null);
-  const timeoutRef = useRef(null);
-
   useEffect(() => {
     if (!playing) return;
 
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    ctxRef.current = ctx;
+    const ctx = getAudioContext();
+    let cancelled = false;
+    let timeoutId;
 
     const playLoop = () => {
+      if (cancelled) return;
       let t = ctx.currentTime;
       MELODY.forEach(([note, dur]) => {
         const osc = ctx.createOscillator();
@@ -76,17 +84,33 @@ function useBackgroundMusic(playing) {
         t += dur;
       });
       const totalDuration = MELODY.reduce((sum, [, dur]) => sum + dur, 0);
-      timeoutRef.current = setTimeout(playLoop, totalDuration * 1000);
+      timeoutId = setTimeout(playLoop, totalDuration * 1000);
     };
 
     playLoop();
 
     return () => {
-      clearTimeout(timeoutRef.current);
-      ctx.close();
-      ctxRef.current = null;
+      cancelled = true;
+      clearTimeout(timeoutId);
     };
   }, [playing]);
+}
+
+// 吃到食物时的短促上扬音效
+function playEatSound() {
+  const ctx = getAudioContext();
+  const t = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'square';
+  osc.frequency.setValueAtTime(440, t);
+  osc.frequency.exponentialRampToValueAtTime(880, t + 0.1);
+  gain.gain.setValueAtTime(0.08, t);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(t);
+  osc.stop(t + 0.12);
 }
 
 export default function App() {
@@ -96,6 +120,15 @@ export default function App() {
 
   // 游戏进行中（running）才播放背景音乐，暂停/结束自动停止
   useBackgroundMusic(state.running);
+
+  // 分数增加（即吃到食物）时播放音效
+  const prevScoreRef = useRef(state.score);
+  useEffect(() => {
+    if (state.score > prevScoreRef.current) {
+      playEatSound();
+    }
+    prevScoreRef.current = state.score;
+  }, [state.score]);
 
   // 窗口尺寸变化时（比如旋转屏幕）重新计算单元格大小
   useEffect(() => {
