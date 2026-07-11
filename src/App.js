@@ -35,10 +35,101 @@ function randomFood(snake) {
   return pos;
 }
 
+// 音效（吃食物/游戏结束）共用同一个 AudioContext，避免反复创建
+let sharedAudioCtx = null;
+function getAudioContext() {
+  if (!sharedAudioCtx) {
+    sharedAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  return sharedAudioCtx;
+}
+
+// 背景音乐：播放 public/bgm.mp3，随 playing 状态播放/暂停并循环
+function useBackgroundMusic(playing) {
+  const audioRef = useRef(null);
+
+  useEffect(() => {
+    if (!audioRef.current) {
+      const audio = new Audio(`${process.env.PUBLIC_URL}/bgm.mp3`);
+      audio.loop = true;
+      audio.volume = 0.2;
+      audioRef.current = audio;
+    }
+
+    if (playing) {
+      audioRef.current.play().catch(() => {});
+    } else {
+      audioRef.current.pause();
+    }
+  }, [playing]);
+}
+
+// 吃到食物时的短促上扬音效
+function playEatSound() {
+  const ctx = getAudioContext();
+  const t = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = 'square';
+  osc.frequency.setValueAtTime(440, t);
+  osc.frequency.exponentialRampToValueAtTime(880, t + 0.1);
+  gain.gain.setValueAtTime(0.08, t);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.start(t);
+  osc.stop(t + 0.12);
+}
+
+// 撞墙/撞到自己导致游戏结束时的音效：经典"伤感小号"四连音下行，每个音带一点下滑
+function playGameOverSound() {
+  const ctx = getAudioContext();
+  let t = ctx.currentTime;
+  const notes = [415.3, 392.0, 369.99, 349.23]; // G#4 -> G4 -> F#4 -> F4，半音下行
+  const durations = [0.18, 0.18, 0.18, 0.55]; // 最后一个音拖长，表示"遗憾地拖了个尾音"
+
+  notes.forEach((freq, i) => {
+    const dur = durations[i];
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(freq * 1.06, t);
+    osc.frequency.exponentialRampToValueAtTime(freq, t + dur * 0.4);
+    gain.gain.setValueAtTime(0.1, t);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + dur * 0.95);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(t);
+    osc.stop(t + dur);
+    t += dur;
+  });
+}
+
 export default function App() {
   const [state, setState] = useState(getInitialState());
   const [cellSize, setCellSize] = useState(computeCellSize);
   const boardRef = useRef(null);
+
+  // 游戏进行中（running）才播放背景音乐，暂停/结束自动停止
+  useBackgroundMusic(state.running);
+
+  // 分数增加（即吃到食物）时播放音效
+  const prevScoreRef = useRef(state.score);
+  useEffect(() => {
+    if (state.score > prevScoreRef.current) {
+      playEatSound();
+    }
+    prevScoreRef.current = state.score;
+  }, [state.score]);
+
+  // dead 由 false 变为 true（撞墙/撞到自己）时播放游戏结束音效
+  const prevDeadRef = useRef(state.dead);
+  useEffect(() => {
+    if (state.dead && !prevDeadRef.current) {
+      playGameOverSound();
+    }
+    prevDeadRef.current = state.dead;
+  }, [state.dead]);
 
   // 窗口尺寸变化时（比如旋转屏幕）重新计算单元格大小
   useEffect(() => {
