@@ -113,6 +113,30 @@ function playEatSound() {
   osc.stop(t + 0.12);
 }
 
+// 撞墙/撞到自己导致游戏结束时的音效：经典"伤感小号"四连音下行，每个音带一点下滑
+function playGameOverSound() {
+  const ctx = getAudioContext();
+  let t = ctx.currentTime;
+  const notes = [415.3, 392.0, 369.99, 349.23]; // G#4 -> G4 -> F#4 -> F4，半音下行
+  const durations = [0.18, 0.18, 0.18, 0.55]; // 最后一个音拖长，表示"遗憾地拖了个尾音"
+
+  notes.forEach((freq, i) => {
+    const dur = durations[i];
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(freq * 1.06, t);
+    osc.frequency.exponentialRampToValueAtTime(freq, t + dur * 0.4);
+    gain.gain.setValueAtTime(0.1, t);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + dur * 0.95);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(t);
+    osc.stop(t + dur);
+    t += dur;
+  });
+}
+
 export default function App() {
   const [state, setState] = useState(getInitialState());
   const [cellSize, setCellSize] = useState(computeCellSize);
@@ -129,6 +153,15 @@ export default function App() {
     }
     prevScoreRef.current = state.score;
   }, [state.score]);
+
+  // dead 由 false 变为 true（撞墙/撞到自己）时播放游戏结束音效
+  const prevDeadRef = useRef(state.dead);
+  useEffect(() => {
+    if (state.dead && !prevDeadRef.current) {
+      playGameOverSound();
+    }
+    prevDeadRef.current = state.dead;
+  }, [state.dead]);
 
   // 窗口尺寸变化时（比如旋转屏幕）重新计算单元格大小
   useEffect(() => {
