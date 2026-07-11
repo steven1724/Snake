@@ -35,21 +35,7 @@ function randomFood(snake) {
   return pos;
 }
 
-const NOTE_FREQ = {
-  C4: 261.63, D4: 293.66, E4: 329.63, F4: 349.23, G4: 392.0,
-  A4: 440.0, B4: 493.88, C5: 523.25, D5: 587.33, E5: 659.25,
-  G3: 196.0, A3: 220.0,
-};
-
-// 8-bit 风格的循环旋律，[音符, 时长(秒)]
-const MELODY = [
-  ['E4', 0.2], ['G4', 0.2], ['A4', 0.2], ['G4', 0.2],
-  ['E4', 0.2], ['D4', 0.2], ['E4', 0.4],
-  ['D4', 0.2], ['C4', 0.2], ['D4', 0.2], ['E4', 0.2],
-  ['C4', 0.4], ['G3', 0.4],
-];
-
-// 所有音效/音乐共用同一个 AudioContext，避免反复创建
+// 音效（吃食物/游戏结束）共用同一个 AudioContext，避免反复创建
 let sharedAudioCtx = null;
 function getAudioContext() {
   if (!sharedAudioCtx) {
@@ -58,41 +44,23 @@ function getAudioContext() {
   return sharedAudioCtx;
 }
 
-// 用 Web Audio API 的振荡器循环播放旋律，无需任何音频文件
+// 背景音乐：播放 public/bgm.mp3，随 playing 状态播放/暂停并循环
 function useBackgroundMusic(playing) {
+  const audioRef = useRef(null);
+
   useEffect(() => {
-    if (!playing) return;
+    if (!audioRef.current) {
+      const audio = new Audio(`${process.env.PUBLIC_URL}/bgm.mp3`);
+      audio.loop = true;
+      audio.volume = 0.2;
+      audioRef.current = audio;
+    }
 
-    const ctx = getAudioContext();
-    let cancelled = false;
-    let timeoutId;
-
-    const playLoop = () => {
-      if (cancelled) return;
-      let t = ctx.currentTime;
-      MELODY.forEach(([note, dur]) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'square';
-        osc.frequency.value = NOTE_FREQ[note];
-        gain.gain.setValueAtTime(0.06, t);
-        gain.gain.exponentialRampToValueAtTime(0.0001, t + dur * 0.9);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(t);
-        osc.stop(t + dur);
-        t += dur;
-      });
-      const totalDuration = MELODY.reduce((sum, [, dur]) => sum + dur, 0);
-      timeoutId = setTimeout(playLoop, totalDuration * 1000);
-    };
-
-    playLoop();
-
-    return () => {
-      cancelled = true;
-      clearTimeout(timeoutId);
-    };
+    if (playing) {
+      audioRef.current.play().catch(() => {});
+    } else {
+      audioRef.current.pause();
+    }
   }, [playing]);
 }
 
